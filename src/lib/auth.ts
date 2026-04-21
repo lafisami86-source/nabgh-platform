@@ -4,12 +4,17 @@ import GoogleProvider from 'next-auth/providers/google';
 import connectDB from './mongodb';
 import User from '@/models/User';
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+const authOptions = {
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
+    // Only include Google if env vars are set
+    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+      ? [
+          GoogleProvider({
+            clientId: process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          }),
+        ]
+      : []),
     CredentialsProvider({
       name: 'credentials',
       credentials: {
@@ -35,25 +40,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             onboardingCompleted: user.onboardingCompleted,
             subscription: user.subscription.plan,
           };
-        } catch (e) { console.error('Auth error:', e); return null; }
+        } catch (e) {
+          console.error('Auth error:', e);
+          return null;
+        }
       },
     }),
   ],
-  session: { strategy: 'jwt', maxAge: 30 * 24 * 60 * 60 },
+  session: { strategy: 'jwt' as const, maxAge: 30 * 24 * 60 * 60 },
   callbacks: {
-    async jwt({ token, user, trigger, session }) {
+    async jwt({ token, user, trigger, session }: any) {
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role;
-        token.onboardingCompleted = (user as any).onboardingCompleted;
-        token.subscription = (user as any).subscription;
+        token.role = user.role;
+        token.onboardingCompleted = user.onboardingCompleted;
+        token.subscription = user.subscription;
       }
       if (trigger === 'update' && session) {
         token.onboardingCompleted = session.onboardingCompleted;
       }
       return token;
     },
-    async session({ session, token }) {
+    async session({ session, token }: any) {
       if (token) {
         session.user.id = token.id as string;
         (session.user as any).role = token.role;
@@ -62,7 +70,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return session;
     },
-    async signIn({ user, account }) {
+    async signIn({ user, account }: any) {
       if (account?.provider === 'google') {
         try {
           await connectDB();
@@ -72,11 +80,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             await User.create({
               email: user.email,
               role: 'student',
-              profile: { firstName: parts[0] || 'مستخدم', lastName: parts.slice(1).join(' ') || 'جديد', displayName: user.name, avatar: user.image, country: 'SA' },
+              profile: {
+                firstName: parts[0] || 'مستخدم',
+                lastName: parts.slice(1).join(' ') || 'جديد',
+                displayName: user.name,
+                avatar: user.image,
+                country: 'SA',
+              },
               isVerified: true,
             });
           }
-        } catch (e) { return false; }
+        } catch (e) {
+          return false;
+        }
       }
       return true;
     },
@@ -84,4 +100,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   pages: { signIn: '/auth/login', error: '/auth/error' },
   secret: process.env.NEXTAUTH_SECRET,
   trustHost: true,
-});
+};
+
+export const { handlers, auth, signIn, signOut } = NextAuth(authOptions);
