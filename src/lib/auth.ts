@@ -1,10 +1,8 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
-import connectDB from './mongodb';
-import User from '@/models/User';
 
-const authOptions = {
+export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     // Only include Google if env vars are set
     ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
@@ -24,6 +22,10 @@ const authOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
         try {
+          // Dynamic imports — Mongoose can't load in Edge Runtime
+          const { default: connectDB } = await import('./mongodb');
+          const { default: User } = await import('@/models/User');
+
           await connectDB();
           const user = await User.findOne({ email: credentials.email }).select('+password');
           if (!user || !user.isActive) return null;
@@ -47,7 +49,7 @@ const authOptions = {
       },
     }),
   ],
-  session: { strategy: 'jwt' as const, maxAge: 30 * 24 * 60 * 60 },
+  session: { strategy: 'jwt', maxAge: 30 * 24 * 60 * 60 },
   callbacks: {
     async jwt({ token, user, trigger, session }: any) {
       if (user) {
@@ -73,6 +75,10 @@ const authOptions = {
     async signIn({ user, account }: any) {
       if (account?.provider === 'google') {
         try {
+          // Dynamic import — only runs in Node.js runtime, not Edge
+          const { default: connectDB } = await import('./mongodb');
+          const { default: User } = await import('@/models/User');
+
           await connectDB();
           const existing = await User.findOne({ email: user.email });
           if (!existing) {
@@ -100,6 +106,4 @@ const authOptions = {
   pages: { signIn: '/auth/login', error: '/auth/error' },
   secret: process.env.NEXTAUTH_SECRET,
   trustHost: true,
-};
-
-export const { handlers, auth, signIn, signOut } = NextAuth(authOptions);
+});
