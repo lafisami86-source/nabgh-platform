@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/mongodb';
 import { Curriculum, Subject, Unit, Lesson, Exercise } from '@/models/Content';
 import { Badge } from '@/models/Analytics';
@@ -6,10 +7,15 @@ import User from '@/models/User';
 export async function seedDatabase() {
   await connectDB();
 
-  const admin = await User.findOneAndUpdate(
+  // Hash passwords upfront — findOneAndUpdate doesn't trigger pre('save')
+  const adminPw = await bcrypt.hash('Admin@123456', 12);
+  const studentPw = await bcrypt.hash('Student@123', 12);
+  const teacherPw = await bcrypt.hash('Teacher@123', 12);
+
+  await User.findOneAndUpdate(
     { email: 'admin@nabgh.com' },
     { $setOnInsert: {
-      email: 'admin@nabgh.com', password: 'Admin@123456', role: 'admin',
+      email: 'admin@nabgh.com', password: adminPw, role: 'admin',
       profile: { firstName: 'مدير', lastName: 'النظام', displayName: 'مدير نبغ', country: 'SA' },
       isVerified: true, onboardingCompleted: true,
     }},
@@ -19,10 +25,28 @@ export async function seedDatabase() {
   await User.findOneAndUpdate(
     { email: 'student@nabgh.com' },
     { $setOnInsert: {
-      email: 'student@nabgh.com', password: 'Student@123', role: 'student',
+      email: 'student@nabgh.com', password: studentPw, role: 'student',
       profile: { firstName: 'أحمد', lastName: 'المحمد', displayName: 'أحمد المحمد', country: 'SA' },
       studentInfo: { educationLevel: 'primary', grade: 'grade_6', curriculum: 'saudi', dailyGoalMinutes: 30, subjects: [] },
       gamification: { xp: 2450, level: 3, streak: { current: 7, longest: 15, freezesRemaining: 1 }, totalLessonsCompleted: 12, totalExercisesSolved: 45, accuracy: 78 },
+      isVerified: true, onboardingCompleted: true,
+    }},
+    { upsert: true, new: true }
+  );
+
+  await User.findOneAndUpdate(
+    { email: 'teacher@nabgh.com' },
+    { $setOnInsert: {
+      email: 'teacher@nabgh.com', password: teacherPw, role: 'teacher',
+      profile: { firstName: 'سارة', lastName: 'الأحمد', displayName: 'سارة الأحمد', country: 'SA' },
+      teacherInfo: {
+        specialization: ['الرياضيات', 'العلوم'],
+        subjects: ['math-grade6-sa', 'science-grade6-sa'],
+        grades: ['grade_6', 'grade_5'],
+        experience: 8,
+        rating: { average: 4.7, count: 42 },
+        verified: true,
+      },
       isVerified: true, onboardingCompleted: true,
     }},
     { upsert: true, new: true }
@@ -122,7 +146,7 @@ export async function seedDatabase() {
           afterMinute: 3,
           question: { type: 'multiple-choice', text: 'في الكسر 3/5، ما هو المقام؟', options: [{ text: '3', isCorrect: false }, { text: '5', isCorrect: true }, { text: '8', isCorrect: false }, { text: '15', isCorrect: false }], explanation: 'المقام هو 5، وهو العدد أسفل خط الكسر' },
         }],
-        createdBy: admin._id, isPublished: true, publishedAt: new Date(),
+        createdBy: (await User.findOne({ email: 'admin@nabgh.com' }))._id, isPublished: true, publishedAt: new Date(),
         tags: ['كسور', 'رياضيات'],
         stats: { views: Math.floor(Math.random()*400)+50, completions: Math.floor(Math.random()*150)+20, avgRating: 4.0 + Math.random()*0.8, ratingsCount: Math.floor(Math.random()*40)+5 },
       }},
@@ -132,6 +156,7 @@ export async function seedDatabase() {
 
   // Exercise for lesson 1
   const lesson1 = await Lesson.findOne({ slug: 'fraction-concept-g6' });
+  const adminUser = await User.findOne({ email: 'admin@nabgh.com' });
   if (lesson1) {
     await Exercise.findOneAndUpdate(
       { lessonId: lesson1._id },
@@ -148,7 +173,7 @@ export async function seedDatabase() {
         ],
         settings:{ shuffleQuestions:false, shuffleOptions:true, showExplanation:'immediately', allowRetry:true, maxAttempts:3, timeLimit:0, passingScore:60, showResults:true, showCorrectAnswers:true, penaltyForWrong:0, bonusForSpeed:false },
         xpReward:{ completion:100, perfect:50, speed:25 },
-        isPublished:true, createdBy:admin._id,
+        isPublished:true, createdBy:adminUser._id,
       }},
       { upsert:true, new:true }
     );
@@ -175,5 +200,5 @@ export async function seedDatabase() {
   }
 
   console.log('✅ Database seeded');
-  return { ok:true };
+  return { ok: true };
 }
