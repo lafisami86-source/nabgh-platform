@@ -1,5 +1,5 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
-import bcrypt from 'bcryptjs';
+import { hash, compare } from 'bcryptjs';
 
 export interface IUserDocument extends Document {
   email: string;
@@ -143,7 +143,7 @@ UserSchema.index({ 'gamification.xp': -1 });
 
 UserSchema.pre('save', async function (next: (err?: Error) => void) {
   if (this.isModified('password') && this.password) {
-    this.password = await bcrypt.hash(this.password, 12);
+    this.password = await hash(this.password, 12);
   }
   if (!this.profile.displayName) {
     this.profile.displayName = `${this.profile.firstName} ${this.profile.lastName}`;
@@ -152,7 +152,7 @@ UserSchema.pre('save', async function (next: (err?: Error) => void) {
 });
 
 UserSchema.methods.comparePassword = async function (pw: string) {
-  return bcrypt.compare(pw, this.password ?? '');
+  return compare(pw, this.password ?? '');
 };
 
 export const LEVEL_THRESHOLDS = [0, 500, 2000, 5000, 10000, 20000, 40000, 70000];
