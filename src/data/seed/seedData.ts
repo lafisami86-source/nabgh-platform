@@ -1,4 +1,4 @@
-import bcrypt from 'bcryptjs';
+import { hash } from 'bcryptjs';
 import connectDB from '@/lib/mongodb';
 import { Curriculum, Subject, Unit, Lesson, Exercise } from '@/models/Content';
 import { Badge } from '@/models/Analytics';
@@ -8,9 +8,9 @@ export async function seedDatabase() {
   await connectDB();
 
   // Pre-hash passwords
-  const adminPw = await bcrypt.hash('Admin@123456', 12);
-  const studentPw = await bcrypt.hash('Student@123', 12);
-  const teacherPw = await bcrypt.hash('Teacher@123', 12);
+  const adminPw = await hash('Admin@123456', 12);
+  const studentPw = await hash('Student@123', 12);
+  const teacherPw = await hash('Teacher@123', 12);
 
   // Delete old seed users and recreate with hashed passwords
   const seedEmails = ['admin@nabgh.com', 'student@nabgh.com', 'teacher@nabgh.com'];
