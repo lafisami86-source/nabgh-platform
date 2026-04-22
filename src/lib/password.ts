@@ -1,24 +1,29 @@
-// This file is only imported in Node.js runtime (API routes, seed)
-// It will NEVER be imported in Edge Runtime (middleware)
+// Password hashing using Web Crypto API (available in both Edge Runtime and Node.js)
+// No imports needed — uses the global `crypto` object
 
-// Dynamic import to avoid static analysis detection
-async function getCrypto() {
-  return await import('node:crypto');
+function toHex(buffer: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function fromHex(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) bytes[i / 2] = parseInt(hex.slice(i, i + 2), 16);
+  return bytes;
 }
 
 export async function hashPassword(password: string): Promise<string> {
-  const { randomBytes, pbkdf2Sync } = await getCrypto();
-  const salt = randomBytes(16).toString('hex');
-  const hash = pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
-  return `pbkdf2_${salt}$${hash}`;
+  const enc = new TextEncoder();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' }, keyMaterial, 256);
+  return `pbk2_${toHex(salt)}$${toHex(bits)}`;
 }
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  if (stored.startsWith('pbkdf2_')) {
-    const { pbkdf2Sync } = await getCrypto();
-    const [salt, hash] = stored.slice(7).split('$');
-    const computed = pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
-    return computed === hash;
-  }
-  return false;
+  if (!stored.startsWith('pbk2_')) return false;
+  const [, rest] = stored.slice(5).split('$');
+  const [saltHex, hashHex] = stored.slice(5).split('$');
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: fromHex(saltHex), iterations: 100000, hash: 'SHA-256' }, keyMaterial, 256);
+  return toHex(bits) === hashHex;
 }
