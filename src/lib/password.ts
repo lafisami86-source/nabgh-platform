@@ -1,8 +1,9 @@
 // Password hashing using Web Crypto API (available in both Edge Runtime and Node.js)
 // No imports needed — uses the global `crypto` object
 
-function toHex(buffer: ArrayBuffer): string {
-  return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+function toHex(data: Uint8Array | ArrayBuffer): string {
+  const arr = data instanceof Uint8Array ? data : new Uint8Array(data);
+  return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 function fromHex(hex: string): Uint8Array {
   const bytes = new Uint8Array(hex.length / 2);
@@ -20,7 +21,6 @@ export async function hashPassword(password: string): Promise<string> {
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   if (!stored.startsWith('pbk2_')) return false;
-  const [, rest] = stored.slice(5).split('$');
   const [saltHex, hashHex] = stored.slice(5).split('$');
   const enc = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
