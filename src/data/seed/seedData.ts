@@ -1,4 +1,8 @@
-import { hash } from 'bcryptjs';
+// bcryptjs v3 dynamic import to avoid bundling issues
+async function hashPw(pw: string, rounds = 12): Promise<string> {
+  const bcrypt = await import('bcryptjs');
+  return bcrypt.default ? bcrypt.default.hash(pw, rounds) : bcrypt.hash(pw, rounds);
+}
 import connectDB from '@/lib/mongodb';
 import { Curriculum, Subject, Unit, Lesson, Exercise } from '@/models/Content';
 import { Badge } from '@/models/Analytics';
@@ -8,9 +12,9 @@ export async function seedDatabase() {
   await connectDB();
 
   // Pre-hash passwords
-  const adminPw = await hash('Admin@123456', 12);
-  const studentPw = await hash('Student@123', 12);
-  const teacherPw = await hash('Teacher@123', 12);
+  const adminPw = await hashPw('Admin@123456', 12);
+  const studentPw = await hashPw('Student@123', 12);
+  const teacherPw = await hashPw('Teacher@123', 12);
 
   // Delete old seed users and recreate with hashed passwords
   const seedEmails = ['admin@nabgh.com', 'student@nabgh.com', 'teacher@nabgh.com'];
