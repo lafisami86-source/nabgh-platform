@@ -1,16 +1,24 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
-import crypto from 'crypto';
+
+// Lazy crypto — avoids Edge Runtime static analysis flagging Node.js module
+let _crypto: any = null;
+function getCrypto(): any {
+  if (!_crypto) _crypto = globalThis.process ? require('crypto') : null;
+  return _crypto;
+}
 
 // Password hashing using Node.js built-in crypto (no external deps)
 function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+  const c = getCrypto();
+  const salt = c.randomBytes(16).toString('hex');
+  const hash = c.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
   return `pbkdf2_${salt}$${hash}`;
 }
 function verifyPassword(password: string, stored: string): boolean {
   if (stored.startsWith('pbkdf2_')) {
+    const c = getCrypto();
     const [prefix, rest] = stored.slice(7).split('$');
-    const hash = crypto.pbkdf2Sync(password, prefix, 10000, 64, 'sha512').toString('hex');
+    const hash = c.pbkdf2Sync(password, prefix, 10000, 64, 'sha512').toString('hex');
     return hash === rest;
   }
   return false;
