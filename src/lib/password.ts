@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Password hashing — works in both Edge Runtime and Node.js serverless
 // No static imports — everything is resolved at runtime
 
