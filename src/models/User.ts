@@ -140,11 +140,10 @@ const UserSchema = new Schema<IUserDocument>(
 UserSchema.index({ email: 1 });
 UserSchema.index({ 'gamification.xp': -1 });
 
-UserSchema.pre('save', function (next: (err?: Error) => void) {
+UserSchema.pre('save', function () {
   if (!this.profile.displayName) {
     this.profile.displayName = `${this.profile.firstName} ${this.profile.lastName}`;
   }
-  next();
 });
 
 export const LEVEL_THRESHOLDS = [0, 500, 2000, 5000, 10000, 20000, 40000, 70000];
