@@ -1,29 +1,5 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
 
-// Lazy crypto — avoids Edge Runtime static analysis flagging Node.js module
-let _crypto: any = null;
-function getCrypto(): any {
-  if (!_crypto) _crypto = globalThis.process ? require('crypto') : null;
-  return _crypto;
-}
-
-// Password hashing using Node.js built-in crypto (no external deps)
-function hashPassword(password: string): string {
-  const c = getCrypto();
-  const salt = c.randomBytes(16).toString('hex');
-  const hash = c.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
-  return `pbkdf2_${salt}$${hash}`;
-}
-function verifyPassword(password: string, stored: string): boolean {
-  if (stored.startsWith('pbkdf2_')) {
-    const c = getCrypto();
-    const [prefix, rest] = stored.slice(7).split('$');
-    const hash = c.pbkdf2Sync(password, prefix, 10000, 64, 'sha512').toString('hex');
-    return hash === rest;
-  }
-  return false;
-}
-
 export interface IUserDocument extends Document {
   email: string;
   password?: string;
@@ -164,9 +140,15 @@ const UserSchema = new Schema<IUserDocument>(
 UserSchema.index({ email: 1 });
 UserSchema.index({ 'gamification.xp': -1 });
 
-UserSchema.pre('save', function (next: (err?: Error) => void) {
-  if (this.isModified('password') && this.password && !this.password.startsWith('pbkdf2_')) {
-    this.password = hashPassword(this.password);
+UserSchema.pre('save', async function (next: (err?: Error) => void) {
+  try {
+    if (this.isModified('password') && this.password && !this.password.startsWith('pbkdf2_')) {
+      // Dynamic import — only runs in Node.js runtime
+      const { hashPassword } = await import('@/lib/password');
+      this.password = await hashPassword(this.password);
+    }
+  } catch (err) {
+    console.error('pre-save hash error:', err);
   }
   if (!this.profile.displayName) {
     this.profile.displayName = `${this.profile.firstName} ${this.profile.lastName}`;
@@ -174,7 +156,8 @@ UserSchema.pre('save', function (next: (err?: Error) => void) {
   next();
 });
 
-UserSchema.methods.comparePassword = function (pw: string) {
+UserSchema.methods.comparePassword = async function (pw: string) {
+  const { verifyPassword } = await import('@/lib/password');
   return verifyPassword(pw, this.password ?? '');
 };
 
