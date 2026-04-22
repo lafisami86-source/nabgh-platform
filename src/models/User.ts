@@ -1,5 +1,20 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
-import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+
+// Password hashing using Node.js built-in crypto (no external deps)
+function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+  return `pbkdf2_${salt}$${hash}`;
+}
+function verifyPassword(password: string, stored: string): boolean {
+  if (stored.startsWith('pbkdf2_')) {
+    const [prefix, rest] = stored.slice(7).split('$');
+    const hash = crypto.pbkdf2Sync(password, prefix, 10000, 64, 'sha512').toString('hex');
+    return hash === rest;
+  }
+  return false;
+}
 
 export interface IUserDocument extends Document {
   email: string;
@@ -141,9 +156,9 @@ const UserSchema = new Schema<IUserDocument>(
 UserSchema.index({ email: 1 });
 UserSchema.index({ 'gamification.xp': -1 });
 
-UserSchema.pre('save', async function (next: (err?: Error) => void) {
-  if (this.isModified('password') && this.password && !this.password.startsWith('$2')) {
-    this.password = await bcrypt.hash(this.password, 12);
+UserSchema.pre('save', function (next: (err?: Error) => void) {
+  if (this.isModified('password') && this.password && !this.password.startsWith('pbkdf2_')) {
+    this.password = hashPassword(this.password);
   }
   if (!this.profile.displayName) {
     this.profile.displayName = `${this.profile.firstName} ${this.profile.lastName}`;
@@ -151,8 +166,8 @@ UserSchema.pre('save', async function (next: (err?: Error) => void) {
   next();
 });
 
-UserSchema.methods.comparePassword = async function (pw: string) {
-  return bcrypt.compare(pw, this.password ?? '');
+UserSchema.methods.comparePassword = function (pw: string) {
+  return verifyPassword(pw, this.password ?? '');
 };
 
 export const LEVEL_THRESHOLDS = [0, 500, 2000, 5000, 10000, 20000, 40000, 70000];

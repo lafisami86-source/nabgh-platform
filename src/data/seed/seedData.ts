@@ -1,4 +1,3 @@
-import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/mongodb';
 import { Curriculum, Subject, Unit, Lesson, Exercise } from '@/models/Content';
 import { Badge } from '@/models/Analytics';
@@ -7,30 +6,25 @@ import User from '@/models/User';
 export async function seedDatabase() {
   await connectDB();
 
-  // Pre-hash passwords
-  const adminPw = await bcrypt.hash('Admin@123456', 12);
-  const studentPw = await bcrypt.hash('Student@123', 12);
-  const teacherPw = await bcrypt.hash('Teacher@123', 12);
-
-  // Delete old seed users and recreate with hashed passwords
+  // Passwords will be hashed automatically by the User pre-save hook
   const seedEmails = ['admin@nabgh.com', 'student@nabgh.com', 'teacher@nabgh.com'];
   await User.deleteMany({ email: { $in: seedEmails } });
 
   await User.create([
     {
-      email: 'admin@nabgh.com', password: adminPw, role: 'admin',
+      email: 'admin@nabgh.com', password: 'Admin@123456', role: 'admin',
       profile: { firstName: 'مدير', lastName: 'النظام', displayName: 'مدير نبغ', country: 'SA' },
       isVerified: true, onboardingCompleted: true,
     },
     {
-      email: 'student@nabgh.com', password: studentPw, role: 'student',
+      email: 'student@nabgh.com', password: 'Student@123', role: 'student',
       profile: { firstName: 'أحمد', lastName: 'المحمد', displayName: 'أحمد المحمد', country: 'SA' },
       studentInfo: { educationLevel: 'primary', grade: 'grade_6', curriculum: 'saudi', dailyGoalMinutes: 30, subjects: [] },
       gamification: { xp: 2450, level: 3, streak: { current: 7, longest: 15, freezesRemaining: 1 }, totalLessonsCompleted: 12, totalExercisesSolved: 45, accuracy: 78 },
       isVerified: true, onboardingCompleted: true,
     },
     {
-      email: 'teacher@nabgh.com', password: teacherPw, role: 'teacher',
+      email: 'teacher@nabgh.com', password: 'Teacher@123', role: 'teacher',
       profile: { firstName: 'سارة', lastName: 'الأحمد', displayName: 'سارة الأحمد', country: 'SA' },
       teacherInfo: {
         specialization: ['الرياضيات', 'العلوم'],
