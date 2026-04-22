@@ -59,7 +59,7 @@ export interface IUserDocument extends Document {
   createdAt: Date;
   updatedAt: Date;
   lastLoginAt?: Date;
-  comparePassword(pw: string): Promise<boolean>;
+
 }
 
 const UserSchema = new Schema<IUserDocument>(
@@ -140,26 +140,12 @@ const UserSchema = new Schema<IUserDocument>(
 UserSchema.index({ email: 1 });
 UserSchema.index({ 'gamification.xp': -1 });
 
-UserSchema.pre('save', async function (next: (err?: Error) => void) {
-  try {
-    if (this.isModified('password') && this.password && !this.password.startsWith('pbkdf2_')) {
-      // Dynamic import — only runs in Node.js runtime
-      const { hashPassword } = await import('@/lib/password');
-      this.password = await hashPassword(this.password);
-    }
-  } catch (err) {
-    console.error('pre-save hash error:', err);
-  }
+UserSchema.pre('save', function (next: (err?: Error) => void) {
   if (!this.profile.displayName) {
     this.profile.displayName = `${this.profile.firstName} ${this.profile.lastName}`;
   }
   next();
 });
-
-UserSchema.methods.comparePassword = async function (pw: string) {
-  const { verifyPassword } = await import('@/lib/password');
-  return verifyPassword(pw, this.password ?? '');
-};
 
 export const LEVEL_THRESHOLDS = [0, 500, 2000, 5000, 10000, 20000, 40000, 70000];
 export const LEVEL_NAMES = ['مبتدئ', 'متعلم', 'دارس', 'متقدم', 'متميز', 'نابغة', 'عبقري', 'أسطورة'];

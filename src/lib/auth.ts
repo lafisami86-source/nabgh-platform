@@ -25,11 +25,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           // Dynamic imports — Mongoose can't load in Edge Runtime
           const { default: connectDB } = await import('./mongodb');
           const { default: User } = await import('@/models/User');
+          const crypto = await import('crypto');
 
           await connectDB();
           const user = await User.findOne({ email: credentials.email }).select('+password');
           if (!user || !user.isActive) return null;
-          const isValid = await user.comparePassword(credentials.password as string);
+          // Verify password using Node.js crypto (runs in Node.js runtime only)
+          const stored = user.password ?? '';
+          const isValid = stored.startsWith('sha_') && (() => {
+            const [salt, hash] = stored.slice(4).split('$');
+            const computed = crypto.pbkdf2Sync(credentials.password as string, salt, 10000, 64, 'sha512').toString('hex');
+            return computed === hash;
+          })();
           if (!isValid) return null;
           user.lastLoginAt = new Date();
           await user.save();

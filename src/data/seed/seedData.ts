@@ -1,30 +1,36 @@
+import { pbkdf2Sync, randomBytes } from 'crypto';
 import connectDB from '@/lib/mongodb';
 import { Curriculum, Subject, Unit, Lesson, Exercise } from '@/models/Content';
 import { Badge } from '@/models/Analytics';
 import User from '@/models/User';
 
+function hash(password: string): string {
+  const salt = randomBytes(16).toString('hex');
+  const hash = pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+  return `sha_${salt}$${hash}`;
+}
+
 export async function seedDatabase() {
   await connectDB();
 
-  // Passwords will be hashed automatically by the User pre-save hook
   const seedEmails = ['admin@nabgh.com', 'student@nabgh.com', 'teacher@nabgh.com'];
   await User.deleteMany({ email: { $in: seedEmails } });
 
   await User.create([
     {
-      email: 'admin@nabgh.com', password: 'Admin@123456', role: 'admin',
+      email: 'admin@nabgh.com', password: hash('Admin@123456'), role: 'admin',
       profile: { firstName: 'مدير', lastName: 'النظام', displayName: 'مدير نبغ', country: 'SA' },
       isVerified: true, onboardingCompleted: true,
     },
     {
-      email: 'student@nabgh.com', password: 'Student@123', role: 'student',
+      email: 'student@nabgh.com', password: hash('Student@123'), role: 'student',
       profile: { firstName: 'أحمد', lastName: 'المحمد', displayName: 'أحمد المحمد', country: 'SA' },
       studentInfo: { educationLevel: 'primary', grade: 'grade_6', curriculum: 'saudi', dailyGoalMinutes: 30, subjects: [] },
       gamification: { xp: 2450, level: 3, streak: { current: 7, longest: 15, freezesRemaining: 1 }, totalLessonsCompleted: 12, totalExercisesSolved: 45, accuracy: 78 },
       isVerified: true, onboardingCompleted: true,
     },
     {
-      email: 'teacher@nabgh.com', password: 'Teacher@123', role: 'teacher',
+      email: 'teacher@nabgh.com', password: hash('Teacher@123'), role: 'teacher',
       profile: { firstName: 'سارة', lastName: 'الأحمد', displayName: 'سارة الأحمد', country: 'SA' },
       teacherInfo: {
         specialization: ['الرياضيات', 'العلوم'],
@@ -165,7 +171,6 @@ export async function seedDatabase() {
     );
   }
 
-  // Badges
   const badgesData = [
     { _id:'lesson_10', name:'قارئ نهم', description:'أكمل 10 دروس', icon:'📚', category:'learning', rarity:'common', xpBonus:50 },
     { _id:'lesson_50', name:'مثقف', description:'أكمل 50 درساً', icon:'📖', category:'learning', rarity:'uncommon', xpBonus:150 },

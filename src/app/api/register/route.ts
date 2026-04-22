@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { pbkdf2Sync, randomBytes } from 'crypto';
 import connectDB from '@/lib/mongodb';
 import User from '@/models/User';
 import { z } from 'zod';
@@ -21,9 +22,12 @@ export async function POST(req: NextRequest) {
     const exists = await User.findOne({ email: data.email });
     if (exists) return NextResponse.json({ error: 'البريد الإلكتروني مستخدم بالفعل' }, { status: 409 });
 
+    const salt = randomBytes(16).toString('hex');
+    const hashed = pbkdf2Sync(data.password, salt, 10000, 64, 'sha512').toString('hex');
+
     const user = await User.create({
       email: data.email,
-      password: data.password,
+      password: `sha_${salt}$${hashed}`,
       role: data.role,
       profile: { firstName: data.firstName, lastName: data.lastName, displayName: `${data.firstName} ${data.lastName}`, country: data.country },
     });
