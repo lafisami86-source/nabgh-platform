@@ -1,13 +1,5 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
-// bcryptjs v3 dynamic import to avoid bundling issues in Vercel Edge/Serverless
-async function hashPassword(pw: string, rounds = 12): Promise<string> {
-  const bcrypt = await import('bcryptjs');
-  return bcrypt.default ? bcrypt.default.hash(pw, rounds) : bcrypt.hash(pw, rounds);
-}
-async function comparePassword(pw: string, hash: string): Promise<boolean> {
-  const bcrypt = await import('bcryptjs');
-  return bcrypt.default ? bcrypt.default.compare(pw, hash) : bcrypt.compare(pw, hash);
-}
+import bcrypt from 'bcryptjs';
 
 export interface IUserDocument extends Document {
   email: string;
@@ -150,13 +142,8 @@ UserSchema.index({ email: 1 });
 UserSchema.index({ 'gamification.xp': -1 });
 
 UserSchema.pre('save', async function (next: (err?: Error) => void) {
-  try {
-    // Skip if password is already a bcrypt hash (starts with $2a$ or $2b$)
-    if (this.isModified('password') && this.password && !this.password.startsWith('$2')) {
-      this.password = await hashPassword(this.password, 12);
-    }
-  } catch (err) {
-    console.error('pre-save hash error:', err);
+  if (this.isModified('password') && this.password && !this.password.startsWith('$2')) {
+    this.password = await bcrypt.hash(this.password, 12);
   }
   if (!this.profile.displayName) {
     this.profile.displayName = `${this.profile.firstName} ${this.profile.lastName}`;
@@ -165,7 +152,7 @@ UserSchema.pre('save', async function (next: (err?: Error) => void) {
 });
 
 UserSchema.methods.comparePassword = async function (pw: string) {
-  return comparePassword(pw, this.password ?? '');
+  return bcrypt.compare(pw, this.password ?? '');
 };
 
 export const LEVEL_THRESHOLDS = [0, 500, 2000, 5000, 10000, 20000, 40000, 70000];
